@@ -1,0 +1,91 @@
+/* Copyright (c) 2026, Ajish and contributors
+ * Styles for the theme switcher cards.
+ *
+ * Only the switcher is styled here. Themes themselves never ship as CSS files -
+ * they are generated per site and delivered in the boot payload.
+ */
+
+/* The stock grid is a single flex row sized for three cards. A catalogue needs
+   to wrap. */
+.theme-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+	gap: 12px;
+	max-height: 60vh;
+	overflow-y: auto;
+	padding: 2px;
+}
+
+.ft-card-wrapper {
+	flex: none;
+}
+
+/* A miniature of the desk: rail on the left, page on the right. Painted with
+   inline colours from the theme's own generated ramps. */
+.ft-preview {
+	height: 96px;
+	display: flex;
+	gap: 0;
+	padding: 0;
+}
+
+.ft-preview-rail {
+	width: 34%;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 10px 8px;
+}
+
+.ft-preview-page {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 10px 8px;
+	min-width: 0;
+}
+
+.ft-dot {
+	width: 12px;
+	height: 12px;
+	border-radius: 4px;
+	margin-bottom: 2px;
+}
+
+.ft-line {
+	height: 5px;
+	border-radius: 3px;
+	width: 80%;
+	opacity: 0.75;
+}
+
+.ft-line.short {
+	width: 55%;
+}
+
+.ft-line.wide {
+	width: 92%;
+	height: 7px;
+	opacity: 1;
+}
+
+.ft-chip {
+	width: 34px;
+	height: 10px;
+	border-radius: 4px;
+	margin-top: 2px;
+}
+
+.ft-rule {
+	height: 1px;
+	width: 100%;
+	opacity: 0.8;
+}
+
+.theme-card-label .ft-mode {
+	display: block;
+	font-weight: 400;
+	color: var(--ink-gray-5);
+	font-size: var(--text-xs);
+}

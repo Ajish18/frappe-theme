@@ -1,0 +1,177 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:theme_name",
+ "creation": "2026-09-13 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "theme_name",
+  "slug",
+  "column_break_meta",
+  "mode",
+  "enabled",
+  "is_standard",
+  "section_description",
+  "description",
+  "section_colours",
+  "accent",
+  "neutral_tint",
+  "column_break_colours",
+  "neutral_chroma",
+  "section_sidebar",
+  "sidebar_style",
+  "sidebar_bg",
+  "section_advanced",
+  "custom_css"
+ ],
+ "fields": [
+  {
+   "fieldname": "theme_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Theme Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "description": "Used as the <code>data-ft-theme</code> value in the generated stylesheet.",
+   "fieldname": "slug",
+   "fieldtype": "Data",
+   "label": "Slug",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "column_break_meta",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Light",
+   "fieldname": "mode",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Mode",
+   "options": "Light\nDark",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "default": "0",
+   "description": "Shipped with the app. Standard themes are restored on migrate, so edits to them are overwritten - duplicate one instead.",
+   "fieldname": "is_standard",
+   "fieldtype": "Check",
+   "label": "Is Standard",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_description",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "section_colours",
+   "fieldtype": "Section Break",
+   "label": "Colours"
+  },
+  {
+   "description": "Drives links, focus rings and active states.",
+   "fieldname": "accent",
+   "fieldtype": "Color",
+   "label": "Accent",
+   "reqd": 1
+  },
+  {
+   "description": "Hue the neutral ramp is tinted towards. Surfaces, borders and text all derive from it.",
+   "fieldname": "neutral_tint",
+   "fieldtype": "Color",
+   "label": "Neutral Tint",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_colours",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0.05",
+   "description": "How strongly the neutrals carry the tint. 0 is a pure gray, 0.05 is a subtle business tint, above 0.12 gets loud.",
+   "fieldname": "neutral_chroma",
+   "fieldtype": "Float",
+   "label": "Neutral Chroma",
+   "precision": "3"
+  },
+  {
+   "fieldname": "section_sidebar",
+   "fieldtype": "Section Break",
+   "label": "Sidebar"
+  },
+  {
+   "default": "Match",
+   "description": "<b>Contrast</b> paints the sidebar and navbar dark against a light working area. <b>Match</b> keeps them in step with the rest of the theme.",
+   "fieldname": "sidebar_style",
+   "fieldtype": "Select",
+   "label": "Sidebar Style",
+   "options": "Match\nContrast"
+  },
+  {
+   "depends_on": "eval:doc.sidebar_style == \"Contrast\"",
+   "description": "Leave blank to derive it from the deep end of the theme's own neutral ramp.",
+   "fieldname": "sidebar_bg",
+   "fieldtype": "Color",
+   "label": "Sidebar Background"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_advanced",
+   "fieldtype": "Section Break",
+   "label": "Advanced"
+  },
+  {
+   "description": "Appended to this theme's block in the generated stylesheet. Scope rules with <code>html[data-ft-theme=\"&lt;slug&gt;\"]</code>.",
+   "fieldname": "custom_css",
+   "fieldtype": "Code",
+   "label": "Custom CSS",
+   "options": "CSS"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-13 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Frappe Themes",
+ "name": "Frappe Theme",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "All"
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
