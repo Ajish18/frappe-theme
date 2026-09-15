@@ -1,36 +1,31 @@
 ## Frappe Themes
 
-A theme catalogue for the Frappe Desk. Ten curated themes - five light, five
-dark - that a user picks from the theme switcher and sees applied immediately.
+Site-wide colour and branding settings for the Frappe Desk - one settings
+page, no separate theme records to manage.
+
+Open **Frappe Theme Settings**, turn off **Use Default Theme**, and pick a
+colour for each named zone of the desk: Sidebar, Top Bar, Page & Records, and
+Accent. Every field previews live on the real desk as you edit it - no
+separate mock-up to imagine from. Save, confirm, done - it applies to every
+user immediately. No reload, no `bench build`, no migration: the schema never
+changes, only the values do.
 
 ### How it works
 
-Frappe v16+ defines its colours as Espresso design tokens: a raw palette
-(`--gray-500`, `--blue-600`) with a semantic layer on top (`--surface-*`,
-`--ink-*`, `--outline-*`) declared in terms of it with `var()`. Override the raw
-palette and every surface, border, label and button that resolves through it
-re-tints - including Frappe UI apps, which consume the same tokens.
+Frappe v16+ defines its colours as semantic CSS custom properties
+(`--surface-*`, `--ink-*`, `--outline-*`, `--btn-primary`, ...). This app
+overrides exactly those tokens with the literal colours you pick - nothing is
+re-hued or derived from a formula. A colour you choose is the colour that
+renders. Because Frappe UI apps and custom apps consume the same tokens, the
+theme reaches them too, with no extra work.
 
-So a theme here is not a stylesheet. It is a re-tint of the ramps the framework
-already ships:
-
-- The base ramps are read out of `frappe/public/css/espresso/colors.css` when a
-  theme is generated, so themes track upstream across upgrades instead of
-  drifting from it.
-- Each stop keeps its **relative luminance**, not its HSL lightness. Rotating a
-  hue at constant lightness is what makes re-tinted palettes look neon; matching
-  luminance instead preserves the contrast ratios the framework was tested
-  against. The test suite asserts this.
-- Only the active theme's CSS is generated, and it travels in the boot payload.
-  There is no build step, no generated file to invalidate, and themes stay
-  per-site on a multi-site bench.
+What *is* computed automatically is whichever colour you leave blank - label
+ink on a coloured background, a button-safe variant of the accent, muted text
+- and it is computed by measured WCAG contrast against the surface it sits on,
+never a fixed light/dark guess. That is what keeps sidebar text legible
+whatever colour the sidebar is, and it is covered by the test suite.
 
 ### Installing
-
-The repository is named `frappe-catalogue` while the app package is
-`frappe_themes`, so clone it into a folder matching the app name - `bench
-get-app <url>` would clone into `apps/frappe-catalogue` and then try to install
-from `apps/frappe_themes`:
 
 ```bash
 cd ~/frappe-bench
@@ -41,42 +36,36 @@ bench --site <site> install-app frappe_themes
 bench restart          # or restart `bench start` in development
 ```
 
-### Using it
+(The repository is named `frappe-catalogue`; the app package is
+`frappe_themes`. Clone into `apps/frappe_themes` as above so the folder name
+matches what bench looks for - `bench get-app` on this URL will not resolve it
+on its own.)
 
-Pick a theme from **Switch Theme** in the navbar, or from user settings. Cards
-show the theme's own colours; clicking one previews it live and asks for
-confirmation before saving.
+### Fields
 
-### Sidebar styles
+| Section | Field | What it does |
+|---|---|---|
+| Sidebar | Background / Text Colour / Font Size | The panel on the left, and its slide-out on narrow screens |
+| Top Bar | Background / Text Colour | The bar across the very top - independent of the sidebar, or leave blank to match it |
+| Page & Records | Page Background / Card Background / Text Colour / Border Colour | The working area, records, columns and record data |
+| Accent | Accent Colour | Buttons, links, focus rings, the selected sidebar row |
+| Typography | Font / Base Font Size | Scales every size in the desk proportionally |
+| Branding | Logo / Show on Splash Screen / Show on Login Page | Uploaded once, shown wherever you enable it |
 
-`Match` keeps the sidebar in step with the rest of the theme. `Contrast` paints
-the sidebar and navbar dark against a light working area - the layout most
-business UIs use - by overriding `--desk-sidebar-bg` and repainting the ink,
-hover and border tokens inside the panel with Frappe's own dark-mode
-assignments. All five light themes ship as `Contrast`.
+**Load a preset** fills the colour pickers from one of ten starting points -
+five light, five dark - as a draft to adjust and save, not a record of its
+own.
 
-### Making your own
+### Scope and safety
 
-Duplicate a theme (shipped ones are rewritten on every `bench migrate`, so edit a
-copy) and set:
-
-| Field | What it does |
-|---|---|
-| `Accent` | Links, focus rings, active states |
-| `Neutral Tint` | Hue the greys are tinted towards |
-| `Neutral Chroma` | How strongly. `0` is a pure grey, `0.05` is a subtle business tint, past `0.12` gets loud |
-| `Sidebar Style` | `Match` or `Contrast` |
-| `Custom CSS` | Appended to the theme's block, for anything the tokens do not cover |
-
-### Administration
-
-**Frappe Theme Settings** sets the site default, and can either allow users their
-own choice or enforce one theme for everyone.
-
-### Scope
-
-Desk only. The website/portal has its own **Website Theme** doctype, and the
-login page is left alone.
+- One Single doctype, one module, nothing written into any other doctype and
+  no custom fields added to core doctypes (not even `User`) - installing this
+  app changes nothing about how any other app behaves.
+- **Use Default Theme** (on by default) shows stock, unmodified Frappe. Turning
+  it off is the only thing that activates any override.
+- Desk only. The website/portal has its own **Website Theme** doctype, and the
+  login page's *layout* is untouched - only its logo is optionally swapped.
+- Uninstalling removes the one doctype and nothing else.
 
 ### Development
 

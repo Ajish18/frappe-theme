@@ -1,333 +1,395 @@
 # Copyright (c) 2026, Ajish and contributors
 # For license information, please see license.txt
-"""Colour engine for Frappe Themes.
+"""Turns Frappe Theme Settings into CSS.
 
-A theme is a *re-tint* of the Espresso token ramps that Frappe already ships,
-not a hand-written palette. The base ramps are read straight out of
-``frappe/public/css/espresso/colors.css`` when the stylesheet is generated, so a
-theme keeps the lightness relationships - and therefore the contrast ratios -
-that the framework was designed and tested with, and picks up ramp changes on
-upgrade instead of drifting away from them.
+The model is direct, not algorithmic: an administrator picks a literal colour
+for each named zone of the desk - Sidebar, Navbar, Page & Records, Accent - and
+that colour is what renders, exactly. Nothing is re-hued or derived from a
+formula, because a formula is what produced the last version's surprise (every
+theme rendering green regardless of what was picked).
 
-Only the *raw* palette is re-tinted. The semantic layer (``--surface-*`` /
-``--ink-*`` / ``--outline-*``) is declared in terms of the raw palette with
-``var()``, so overriding ``--gray-500`` re-tints every surface, border and label
-that resolves through it. Frappe UI apps consume the same tokens, so they are
-themed by the same override with no extra work.
+What *is* still derived automatically - and this is the part worth keeping from
+that version - is whichever colour the administrator leaves blank: label ink on
+a coloured background, the safe button variant of an accent, muted text. Those
+are computed by measured WCAG contrast against the surface they sit on, never a
+fixed light/dark guess, so a colour that is picked always stays legible.
+
+Only Frappe's own semantic tokens are touched (`--surface-*`, `--ink-*`,
+`--outline-*`, `--btn-primary`, ...), never the raw palette. That is what makes
+the theme apply to Frappe UI apps and custom apps for free: anything built on
+those tokens picks it up without being told about this app.
 """
-
-import colorsys
-import os
-import re
 
 import frappe
 
-# Raw colour families we re-tint. `gray` carries every surface, border and text
-# colour in the desk (`--btn-primary` is `--surface-gray-10`, i.e. gray-900), and
-# `blue` is Espresso's interactive family - links, focus rings, active states.
-NEUTRAL_FAMILY = "gray"
-ACCENT_FAMILY = "blue"
-
-# Matches `--gray-500: #aabbcc;` - only 3/6-digit hex, so `var()` aliases and
-# the 8-digit alpha tokens (`--black-900: #000000e5`) are left alone.
-TOKEN_RE = re.compile(r"--([a-z]+)-(\d+)\s*:\s*(#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3})\s*;")
-
-LIGHT_BLOCK_RE = re.compile(r":root,\s*\[data-theme=\"light\"\]\s*\{(.*?)\n\}", re.S)
-DARK_BLOCK_RE = re.compile(r"\[data-theme=\"dark\"\],\s*\.dark\s*\{(.*?)\n\}", re.S)
-
-
-def get_colors_css_path() -> str:
-	"""Path to the Espresso token source of truth in the installed frappe app."""
-	return os.path.join(
-		os.path.dirname(os.path.abspath(frappe.__file__)),
-		"public",
-		"css",
-		"espresso",
-		"colors.css",
-	)
-
-
-def parse_base_ramps() -> dict:
-	"""Read the light and dark raw palettes out of Espresso's colors.css.
-
-	Returns ``{"light": {"gray": {50: "#f8f8f8", ...}, ...}, "dark": {...}}``.
-	Parsed once per process and cached - the file only changes on upgrade.
-	"""
-	if getattr(frappe.local, "_ft_base_ramps", None):
-		return frappe.local._ft_base_ramps
-
-	with open(get_colors_css_path()) as f:
-		css = f.read()
-
-	ramps = {}
-	for mode, pattern in (("light", LIGHT_BLOCK_RE), ("dark", DARK_BLOCK_RE)):
-		match = pattern.search(css)
-		block = match.group(1) if match else ""
-		families = {}
-		for family, stop, value in TOKEN_RE.findall(block):
-			families.setdefault(family, {})[int(stop)] = value
-		ramps[mode] = families
-
-	frappe.local._ft_base_ramps = ramps
-	return ramps
-
-
 # ---------------------------------------------------------------------------
-# colour helpers
+# colour math
 # ---------------------------------------------------------------------------
 
 
-def hex_to_hls(value: str) -> tuple:
-	value = value.strip().lstrip("#")
+def _channels(color: str) -> tuple[float, float, float]:
+	value = (color or "").strip().lstrip("#")
 	if len(value) == 3:
 		value = "".join(c * 2 for c in value)
-	r, g, b = (int(value[i : i + 2], 16) / 255 for i in (0, 2, 4))
-	return colorsys.rgb_to_hls(r, g, b)
+	if len(value) != 6:
+		return (0.5, 0.5, 0.5)
+	return tuple(int(value[i : i + 2], 16) / 255 for i in (0, 2, 4))
 
 
-def hls_to_hex(h: float, l: float, s: float) -> str:
-	r, g, b = colorsys.hls_to_rgb(h % 1.0, min(max(l, 0.0), 1.0), min(max(s, 0.0), 1.0))
-	return "#{:02x}{:02x}{:02x}".format(round(r * 255), round(g * 255), round(b * 255))
-
-
-def relative_luminance(r: float, g: float, b: float) -> float:
-	"""WCAG relative luminance for an sRGB triple in 0..1."""
+def relative_luminance(color: str) -> float:
+	"""WCAG relative luminance, 0 (black) to 1 (white)."""
 
 	def channel(c):
 		return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
 
+	r, g, b = _channels(color)
 	return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
 
 
-def match_luminance(hue: float, saturation: float, target: float) -> float:
-	"""Lightness at which (hue, saturation) has `target` relative luminance.
+def contrast_of(a: str, b: str) -> float:
+	"""WCAG contrast ratio between two colours, 1 (none) to 21 (max)."""
+	la, lb = relative_luminance(a), relative_luminance(b)
+	hi, lo = max(la, lb), min(la, lb)
+	return (hi + 0.05) / (lo + 0.05)
 
-	Rotating a hue at constant HSL lightness does not preserve how bright the
-	colour *looks* - green at L=51% is far brighter than blue at L=51%, which is
-	how a re-tinted ramp ends up neon. Luminance is monotonic in L for a fixed
-	hue and saturation, so a short bisection lands on the lightness that keeps the
-	stop as bright as the Espresso stop it replaces. That is what preserves the
-	contrast ratios the framework was tested against.
+
+def readable_ink(background: str) -> str:
+	"""Pure black or pure white, whichever contrasts more with `background`."""
+	if not background:
+		return "#000000"
+	return "#ffffff" if contrast_of(background, "#ffffff") >= contrast_of(background, "#000000") else "#000000"
+
+
+def mix(a: str, b: str, weight: float) -> str:
+	"""`a` blended towards `b` by `weight` (0 = pure a, 1 = pure b)."""
+	ar, ag, ab = _channels(a)
+	br, bg, bb = _channels(b)
+	r, g, bl = (x + (y - x) * weight for x, y in ((ar, br), (ag, bg), (ab, bb)))
+	return "#{:02x}{:02x}{:02x}".format(round(r * 255), round(g * 255), round(bl * 255))
+
+
+def to_rgb_tuple(color: str) -> tuple[int, int, int]:
+	r, g, b = _channels(color)
+	return round(r * 255), round(g * 255), round(b * 255)
+
+
+def overlay(ink: str, alpha: float) -> str:
+	"""`ink` as a translucent layer, for dividers and hover states on a tinted rail.
+
+	An overlay - rather than a flat colour - is what keeps every step at a
+	predictable distance from whatever the rail's own colour is, brand colour
+	included, without needing a colour of its own for each step.
 	"""
-	lo, hi = 0.0, 1.0
-	for _ in range(24):
-		mid = (lo + hi) / 2
-		r, g, b = colorsys.hls_to_rgb(hue % 1.0, mid, saturation)
-		if relative_luminance(r, g, b) < target:
-			lo = mid
-		else:
-			hi = mid
-	return (lo + hi) / 2
+	r, g, b = to_rgb_tuple(ink)
+	return f"rgba({r}, {g}, {b}, {alpha:g})"
 
 
-def neutral_saturation(chroma: float, lightness: float) -> float:
-	"""Saturation for one neutral stop.
+def safe_button_color(accent: str, ink: str, min_ratio: float = 4.5) -> str:
+	"""`accent`, darkened or lightened just enough for `ink` text to read on it.
 
-	A flat saturation across the ramp reads muddy in the mid tones and washed out
-	in the darks, so the tint is weighted towards the dark end - the same shape
-	Tailwind's `slate` and Radix's tinted grays use.
+	A theme's accent is chosen for how it looks, not for whether text sits on it
+	cleanly - so the button uses a shifted copy rather than the literal accent
+	when the literal one would fail contrast.
 	"""
-	return chroma * (0.55 + 0.9 * (1.0 - lightness))
+	if contrast_of(accent, ink) >= min_ratio:
+		return accent
 
-
-def retint_ramp(base: dict, hue: float, *, chroma: float = None, sat_scale: float = 1.0) -> dict:
-	"""Re-hue one ramp, keeping every stop's lightness.
-
-	``chroma`` set  -> neutral mode: saturation is imposed (base grays have none).
-	``chroma`` None -> accent mode: the base stop's own saturation is kept, so the
-	ramp stays as vivid (and as carefully de-saturated at the ends) as Espresso's.
-	"""
-	out = {}
-	for stop, value in base.items():
-		r, g, b = (int(value.lstrip("#")[i : i + 2], 16) / 255 for i in (0, 2, 4))
-		_, l, s = colorsys.rgb_to_hls(r, g, b)
-		if chroma is not None:
-			new_s = neutral_saturation(chroma, l)
-		else:
-			new_s = min(1.0, s * sat_scale)
-		new_l = match_luminance(hue, new_s, relative_luminance(r, g, b))
-		out[stop] = hls_to_hex(hue, new_l, new_s)
-	return out
-
-
-def hue_of(color: str) -> float:
-	return hex_to_hls(color)[0]
-
-
-def saturation_of(color: str) -> float:
-	return hex_to_hls(color)[2]
+	# Move towards whichever pole increases contrast: darker if the ink is light,
+	# lighter if the ink is dark.
+	target = "#000000" if relative_luminance(ink) > 0.5 else "#ffffff"
+	for step in range(1, 20):
+		candidate = mix(accent, target, step / 20)
+		if contrast_of(candidate, ink) >= min_ratio:
+			return candidate
+	return target
 
 
 # ---------------------------------------------------------------------------
-# stylesheet generation
+# typography
 # ---------------------------------------------------------------------------
 
-ALIAS_RE = re.compile(r"--([a-z0-9-]+)\s*:\s*var\(--([a-z]+-\d+)\)\s*;")
 
-# Semantic families repainted inside a contrast sidebar. Text, hover fills and
-# borders - enough to make the panel legible on a dark rail without leaking dark
-# tokens into anything else.
-CONTRAST_ALIAS_PREFIXES = ("ink-gray-", "surface-gray-", "outline-gray-")
+def get_typography_css_path() -> str:
+	import os
 
-# Where a contrast sidebar's tokens apply. The panel, its flyout, the dock and
-# the navbar - every surface painted with `--desk-sidebar-bg`.
-CONTRAST_SCOPES = (".body-sidebar", ".sidebar-panel", ".dock-container", ".navbar")
-
-
-def parse_alias_map(mode: str = "dark") -> dict:
-	"""``{"ink-gray-9": "gray-50", ...}`` for one theme block.
-
-	These are Espresso's own semantic assignments. Reusing them - rather than
-	deciding for ourselves which gray a sidebar label should be - is what keeps a
-	contrast sidebar consistent with Frappe's real dark mode.
-	"""
-	with open(get_colors_css_path()) as f:
-		css = f.read()
-
-	pattern = DARK_BLOCK_RE if mode == "dark" else LIGHT_BLOCK_RE
-	match = pattern.search(css)
-	return dict(ALIAS_RE.findall(match.group(1))) if match else {}
-
-
-def build_ramps(spec: dict) -> dict:
-	"""Generate the tinted neutral and accent ramps for a theme spec."""
-	base = parse_base_ramps()
-	mode = (spec.get("mode") or "Light").lower()
-	base_mode = base.get(mode, base["light"])
-
-	neutral_hue = hue_of(spec.get("neutral_tint") or "#808080")
-	accent = spec.get("accent") or "#0d8ef8"
-
-	ramps = {
-		NEUTRAL_FAMILY: retint_ramp(
-			base_mode.get(NEUTRAL_FAMILY, {}),
-			neutral_hue,
-			chroma=float(spec.get("neutral_chroma") or 0.05),
-		),
-		ACCENT_FAMILY: retint_ramp(base_mode.get(ACCENT_FAMILY, {}), hue_of(accent)),
-	}
-
-	# The contrast rail is painted with the *dark* neutral ramp whatever the
-	# theme's own mode is - that is what a dark rail on a light page means.
-	ramps["_contrast_neutral"] = retint_ramp(
-		base["dark"].get(NEUTRAL_FAMILY, {}),
-		neutral_hue,
-		chroma=float(spec.get("neutral_chroma") or 0.05),
+	return os.path.join(
+		os.path.dirname(os.path.abspath(frappe.__file__)), "public", "css", "espresso", "typography.css"
 	)
-	return ramps
 
 
-def derive_sidebar_bg(spec: dict, ramps: dict) -> str:
-	"""Explicit `sidebar_bg`, else the deep end of the theme's own neutral ramp."""
-	if spec.get("sidebar_bg"):
-		return spec["sidebar_bg"]
-	contrast = ramps["_contrast_neutral"]
-	return contrast.get(900) or contrast.get(950) or "#1f1f1f"
+def parse_type_scale() -> dict:
+	"""``{"text-base": 14, ...}`` - every px size Espresso's own ramp defines."""
+	if getattr(frappe.local, "_ft_type_scale", None):
+		return frappe.local._ft_type_scale
+
+	import re
+
+	try:
+		with open(get_typography_css_path()) as f:
+			scale = {name: int(px) for name, px in re.findall(r"--(text-[a-z0-9-]+)\s*:\s*(\d+)px\s*;", f.read())}
+	except OSError:
+		scale = {}
+
+	frappe.local._ft_type_scale = scale
+	return scale
 
 
-def build_theme_css(spec: dict) -> str:
-	"""Full CSS for one theme, scoped to `html[data-ft-theme="<slug>"]`.
+def type_scale_css(base_font_size) -> list:
+	"""Scale every desk font size proportionally around a new `--text-base`.
 
-	The selector is one specificity step above Espresso's own `:root` /
-	`[data-theme="light"]` blocks, so the overrides win without `!important` and
-	without having to be loaded in any particular order.
+	The desk's sizes are a designed ramp, not independent numbers - scaling them
+	all by the same factor keeps headings, labels and body text in the same
+	relationship the framework was designed with, rather than growing body text
+	while leaving headings behind.
 	"""
-	slug = spec["slug"]
-	ramps = build_ramps(spec)
-	root = f'html[data-ft-theme="{slug}"]'
-	lines = [f"/* {spec.get('theme_name', slug)} - {spec.get('mode', 'Light').lower()} */", f"{root} {{"]
+	scale = parse_type_scale()
+	anchor = scale.get("text-base", 14)
+	if not scale or not base_font_size:
+		return []
 
-	for family in (NEUTRAL_FAMILY, ACCENT_FAMILY):
-		for stop, value in sorted(ramps[family].items()):
-			lines.append(f"\t--{family}-{stop}: {value};")
+	base_font_size = float(base_font_size)
+	if round(base_font_size) == anchor:
+		return []
 
-	accent_ramp = ramps[ACCENT_FAMILY]
-	primary = accent_ramp.get(500) or spec.get("accent")
-	# `--primary` is referenced by `--brand-color` and `--progress-bar-bg` but is
-	# left undefined by the framework, so a theme is the only thing that sets it.
-	lines.append(f"\t--primary: {primary};")
-	lines.append(f"\t--primary-color: {primary};")
+	factor = base_font_size / anchor
+	return [f"\t--{name}: {round(px * factor)}px;" for name, px in sorted(scale.items())]
 
-	is_contrast = (spec.get("sidebar_style") or "Match") == "Contrast"
-	if is_contrast:
-		sidebar_bg = derive_sidebar_bg(spec, ramps)
-		lines.append(f"\t--desk-sidebar-bg: {sidebar_bg};")
-		lines.append(f"\t--navbar-bg: {sidebar_bg};")
+
+FONT_STACKS = {
+	"Inter (Default)": None,  # Inter is already Espresso's own --font-stack.
+	"System UI": '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+	"Serif": 'Georgia, Cambria, "Times New Roman", Times, serif',
+	"Monospace": '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
+}
+
+
+# ---------------------------------------------------------------------------
+# CSS generation
+# ---------------------------------------------------------------------------
+
+ROOT_SELECTOR = 'html[data-ft-active="1"]'
+
+# Everything the panel, its flyout and the navbar are painted with. `.dock` is
+# the module switcher/rail in the current desk shell; `.body-sidebar` and
+# `.sidebar-panel` are the in-app sidebar and its slide-out on narrow screens.
+RAIL_SCOPES = (".body-sidebar", ".sidebar-panel", ".dock")
+NAVBAR_SCOPES = (".navbar",)
+
+# Ink steps as overlay alphas - `ink-gray-6` is the one that matters most,
+# since `.item-anchor` colours every sidebar row label with it.
+INK_ALPHAS = {9: 1.0, 8: 0.95, 7: 0.9, 6: 0.82, 5: 0.68, 4: 0.58, 3: 0.48, 2: 0.38, 1: 0.28}
+SURFACE_ALPHAS = {1: 0.06, 2: 0.12, 3: 0.18, 4: 0.24, 5: 0.3}
+OUTLINE_ALPHAS = {1: 0.12, 2: 0.18, 3: 0.24}
+
+
+def rail_block(
+	selectors: tuple,
+	background: str,
+	text_color: str | None,
+	accent: str | None,
+	*,
+	own_tokens: tuple = (),
+) -> list:
+	"""Token overrides for one coloured rail (the sidebar, or the navbar).
+
+	Every label, divider and hover state is an overlay of one ink colour over
+	`background`, so the whole rail reads as one consistent surface whatever
+	colour it is painted - the failure mode this replaces was a fixed grey that
+	Frappe designed for near-black, applied on top of a bright accent instead.
+
+	`own_tokens` are the surface-level tokens this particular rail is
+	responsible for (`--desk-sidebar-bg` for the sidebar, `--navbar-bg` for the
+	navbar) - kept separate per caller so the navbar's block does not also
+	declare a sidebar token it has no reason to own, even though the two never
+	actually conflict (the navbar block is emitted second, so it would win the
+	cascade regardless).
+	"""
+	if not background:
+		return []
+
+	ink = text_color or readable_ink(background)
+	selector = ",\n".join(f"{ROOT_SELECTOR} {s}" for s in selectors)
+	lines = [selector + " {"]
+
+	for stop, alpha in sorted(INK_ALPHAS.items()):
+		lines.append(f"\t--ink-gray-{stop}: {overlay(ink, alpha)};")
+	for stop, alpha in sorted(SURFACE_ALPHAS.items()):
+		lines.append(f"\t--surface-gray-{stop}: {overlay(ink, alpha)};")
+	for stop, alpha in sorted(OUTLINE_ALPHAS.items()):
+		lines.append(f"\t--outline-gray-{stop}: {overlay(ink, alpha)};")
+
+	for token in own_tokens:
+		lines.append(f"\t{token}: {background};")
+
+	if accent:
+		lines.append(f"\t--surface-elevation-1: {overlay(ink, 0.08)};")
+		lines.append(f"\t--surface-elevation-2: {overlay(ink, 0.14)};")
+		# The selected row: `.active-sidebar` paints itself with
+		# `--surface-elevation-3`, left alone that resolves to the *page's*
+		# elevation-3 (usually near white), which is the white-pill-on-a-dark-rail
+		# bug this replaces.
+		lines.append(f"\t--surface-elevation-3: {accent};")
 	lines.append("}")
 
-	if is_contrast:
-		lines.extend(build_contrast_css(spec, ramps, root))
+	if accent:
+		active_ink = readable_ink(accent)
+		active_selector = ",\n".join(f"{ROOT_SELECTOR} {s} .active-sidebar" for s in selectors)
+		lines.append(active_selector + " {")
+		for stop in (6, 7, 8):
+			lines.append(f"\t--ink-gray-{stop}: {active_ink};")
+		lines.append("}")
 
-	if spec.get("custom_css"):
-		lines.append(f"/* custom css - {slug} */")
-		lines.append(spec["custom_css"])
-
-	return "\n".join(lines)
-
-
-def build_contrast_css(spec: dict, ramps: dict, root: str) -> list:
-	"""Repaint text, hover and border tokens inside a dark rail on a light theme."""
-	aliases = parse_alias_map("dark")
-	neutral = ramps["_contrast_neutral"]
-
-	selector = ",\n".join(f"{root} {scope}" for scope in CONTRAST_SCOPES)
-	lines = ["", f"/* {spec.get('theme_name')} - contrast sidebar */", f"{selector} {{"]
-
-	for alias, target in sorted(aliases.items()):
-		if not alias.startswith(CONTRAST_ALIAS_PREFIXES):
-			continue
-		family, _, stop = target.rpartition("-")
-		if family != NEUTRAL_FAMILY:
-			continue
-		value = neutral.get(int(stop))
-		if value:
-			lines.append(f"\t--{alias}: {value};")
-
-	# `--surface-sidebar` is `transparent` in dark so frappe-ui can let the page
-	# show through; a rail drawn *over* a light page has to be opaque.
-	lines.append(f"\t--surface-sidebar: {derive_sidebar_bg(spec, ramps)};")
-	lines.append("}")
 	return lines
 
 
-def build_stylesheet(specs: list) -> str:
-	"""The whole catalogue as one static stylesheet."""
-	header = [
+def build_settings_css(values: dict) -> str:
+	"""The complete stylesheet for one set of settings values.
+
+	Used for both the live preview while editing (unsaved values, called from
+	the form) and the real boot payload (saved values) - one code path, so a
+	preview is never wrong about what saving will do.
+	"""
+	if not values or values.get("use_default_theme"):
+		return ""
+
+	lines = [
 		"/* GENERATED by frappe_themes - do not edit.",
-		" * Rebuild: bench --site <site> execute frappe_themes.api.rebuild_stylesheet",
+		" * Regenerated automatically whenever Frappe Theme Settings is saved.",
 		" */",
 		"",
 	]
-	blocks = [build_theme_css(spec) for spec in specs]
-	return "\n".join(header + blocks) + "\n"
+
+	# --- page, records, and everything that is neither the rail nor the navbar
+	page_bg = values.get("page_background")
+	card_bg = values.get("card_background")
+	text_color = values.get("text_color")
+	border_color = values.get("border_color")
+	accent = values.get("accent_color")
+
+	global_lines = []
+	if page_bg:
+		global_lines.append(f"\t--surface-base: {page_bg};")
+		# The subtle fills a page uses for list headers, hover rows and input
+		# backgrounds are one step off the page colour, not off the card.
+		muted_bg = mix(page_bg, readable_ink(page_bg), 0.06)
+		muted_bg_2 = mix(page_bg, readable_ink(page_bg), 0.1)
+		global_lines.append(f"\t--surface-gray-1: {muted_bg};")
+		global_lines.append(f"\t--surface-gray-2: {muted_bg_2};")
+	if card_bg:
+		global_lines.append(f"\t--surface-elevation-1: {card_bg};")
+		global_lines.append(f"\t--surface-elevation-2: {card_bg};")
+		global_lines.append(f"\t--card-bg: {card_bg};")
+	if text_color:
+		global_lines.append(f"\t--ink-gray-8: {text_color};")
+		global_lines.append(f"\t--ink-gray-9: {text_color};")
+		against = page_bg or "#ffffff"
+		global_lines.append(f"\t--ink-gray-6: {mix(text_color, against, 0.35)};")
+		global_lines.append(f"\t--ink-gray-5: {mix(text_color, against, 0.5)};")
+	if border_color:
+		global_lines.append(f"\t--outline-gray-1: {border_color};")
+		global_lines.append(f"\t--outline-gray-2: {border_color};")
+	elif page_bg and text_color:
+		auto_border = mix(page_bg, text_color, 0.15)
+		global_lines.append(f"\t--outline-gray-1: {auto_border};")
+		global_lines.append(f"\t--outline-gray-2: {auto_border};")
+	if accent:
+		global_lines.append(f"\t--primary: {accent};")
+		global_lines.append(f"\t--primary-color: {accent};")
+		# `.btn-primary` takes its own text colour from `--neutral`, which
+		# Espresso flips by ambient light/dark mode - not by us - so we pin
+		# `--neutral` too, to whichever pole actually reads on this accent. That
+		# decouples the button's legibility from the viewer's light/dark setting.
+		btn_ink = readable_ink(accent)
+		button = safe_button_color(accent, btn_ink)
+		global_lines.append(f"\t--btn-primary: {button};")
+		global_lines.append(f"\t--progress-bar-bg: {button};")
+		global_lines.append(f"\t--neutral: {btn_ink};")
+
+	if global_lines:
+		lines.append(ROOT_SELECTOR + " {")
+		lines.extend(global_lines)
+		lines.extend(type_scale_css(values.get("base_font_size")))
+		font_stack = FONT_STACKS.get(values.get("font_family") or "Inter (Default)")
+		if font_stack:
+			lines.append(f"\t--font-stack: {font_stack};")
+		lines.append("}")
+
+	# --- sidebar
+	rail_lines = rail_block(
+		RAIL_SCOPES,
+		values.get("sidebar_background"),
+		values.get("sidebar_text_color"),
+		accent,
+		own_tokens=("--surface-sidebar", "--desk-sidebar-bg"),
+	)
+	if rail_lines:
+		lines.append("")
+		lines.append("/* sidebar */")
+		lines.extend(rail_lines)
+
+	sidebar_font = values.get("sidebar_font_size")
+	if sidebar_font and values.get("sidebar_background"):
+		selector = ",\n".join(f"{ROOT_SELECTOR} {s}" for s in RAIL_SCOPES)
+		lines.append("")
+		lines.append(selector + " {")
+		lines.append(f"\t--text-sm: {int(float(sidebar_font))}px;")
+		lines.append("}")
+
+	# --- navbar (independent of the sidebar's own colour, but matches it by
+	# default - "leave blank to match the sidebar" on the field itself)
+	navbar_bg = values.get("navbar_background") or values.get("sidebar_background")
+	navbar_ink = values.get("navbar_text_color") or (
+		None if values.get("navbar_background") else values.get("sidebar_text_color")
+	)
+	navbar_lines = rail_block(
+		NAVBAR_SCOPES,
+		navbar_bg,
+		navbar_ink,
+		None,
+		own_tokens=("--navbar-bg",),
+	)
+	if navbar_lines:
+		lines.append("")
+		lines.append("/* navbar */")
+		lines.extend(navbar_lines)
+
+	# --- branding
+	logo = values.get("app_logo")
+	if logo:
+		if values.get("show_logo_on_splash_screen"):
+			lines.append("")
+			lines.append("/* splash screen logo */")
+			lines.append(f'{ROOT_SELECTOR} .splash img {{ content: url("{logo}"); }}')
+		if values.get("show_logo_on_login_page"):
+			lines.append("")
+			lines.append("/* login page logo */")
+			lines.append(f'.page-card-head .app-logo {{ content: url("{logo}"); }}')
+
+	return "\n".join(lines) + "\n"
 
 
-def get_preview(spec: dict) -> dict:
-	"""The handful of colours the picker paints a preview card with.
-
-	Taken from the generated ramps rather than from the spec's raw inputs, so a
-	card shows the colours the theme will actually render with.
-	"""
-	ramps = build_ramps(spec)
-	neutral = ramps[NEUTRAL_FAMILY]
-	accent = ramps[ACCENT_FAMILY]
-	is_dark = (spec.get("mode") or "Light") == "Dark"
-	is_contrast = (spec.get("sidebar_style") or "Match") == "Contrast"
-
-	if is_contrast:
-		sidebar = derive_sidebar_bg(spec, ramps)
-	else:
-		sidebar = neutral.get(900) if is_dark else neutral.get(50)
+def get_preview(values: dict) -> dict:
+	"""The handful of swatches the settings form paints its live mock-up with."""
+	page_bg = values.get("page_background") or "#ffffff"
+	card_bg = values.get("card_background") or mix(page_bg, readable_ink(page_bg), 0.04)
+	text_color = values.get("text_color") or readable_ink(page_bg)
+	accent = values.get("accent_color") or "#0d8ef8"
+	sidebar_bg = values.get("sidebar_background") or "#12305c"
+	sidebar_ink = values.get("sidebar_text_color") or readable_ink(sidebar_bg)
+	navbar_bg = values.get("navbar_background") or sidebar_bg
+	navbar_ink = values.get("navbar_text_color") or readable_ink(navbar_bg)
 
 	return {
-		"page": neutral.get(950) if is_dark else "#ffffff",
-		"surface": neutral.get(900) if is_dark else neutral.get(50),
-		"sidebar": sidebar,
-		"sidebar_ink": ramps["_contrast_neutral"].get(200) if is_contrast else (
-			neutral.get(200) if is_dark else neutral.get(700)
-		),
-		"accent": accent.get(500),
-		"ink": neutral.get(50) if is_dark else neutral.get(900),
-		"muted": neutral.get(400) if is_dark else neutral.get(500),
-		"outline": neutral.get(700) if is_dark else neutral.get(300),
+		"page": page_bg,
+		"card": card_bg,
+		"text": text_color,
+		"muted": mix(text_color, page_bg, 0.4),
+		"border": values.get("border_color") or mix(page_bg, text_color, 0.15),
+		"accent": accent,
+		"button": safe_button_color(accent, readable_ink(accent)),
+		"sidebar": sidebar_bg,
+		"sidebar_ink": sidebar_ink,
+		"sidebar_muted": overlay(sidebar_ink, 0.55),
+		"navbar": navbar_bg,
+		"navbar_ink": navbar_ink,
 	}

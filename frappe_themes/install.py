@@ -1,24 +1,23 @@
 # Copyright (c) 2026, Ajish and contributors
 # For license information, please see license.txt
+"""Installation.
+
+Deliberately minimal: one Single doctype, its own module, nothing written into
+any other doctype's data and no custom fields on core doctypes. That is what
+lets this app be installed on any site - alongside any other app, custom or
+core - without touching how that app behaves: everything here is additive CSS,
+switched on only once an administrator turns off "Use Default Theme".
+"""
 
 import frappe
-from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
-from frappe_themes.standard_themes import STANDARD_THEMES
-
-# The per-user selection. A custom field on User rather than a doctype of our own
-# keeps it on the record the desk already loads and caches for every request.
-USER_FIELDS = {
-	"User": [
-		{
-			"fieldname": "frappe_theme",
-			"label": "Theme",
-			"fieldtype": "Link",
-			"options": "Frappe Theme",
-			"insert_after": "desk_theme",
-			"description": "Colour theme for the desk. Set from the theme switcher.",
-		}
-	]
+DEFAULTS = {
+	"use_default_theme": 1,
+	"accent_color": "#0d8ef8",
+	"sidebar_background": "#12305c",
+	"page_background": "#ffffff",
+	"card_background": "#f8f8f8",
+	"text_color": "#171717",
 }
 
 
@@ -31,44 +30,21 @@ def after_migrate():
 
 
 def setup():
-	create_custom_fields(USER_FIELDS, ignore_validate=True)
-	install_standard_themes()
-	set_default_theme()
+	settings = frappe.get_single("Frappe Theme Settings")
+	changed = False
+	for fieldname, value in DEFAULTS.items():
+		if not settings.get(fieldname):
+			settings.set(fieldname, value)
+			changed = True
+	if changed:
+		settings.save(ignore_permissions=True)
 
 	from frappe_themes.api import clear_theme_cache
 
 	clear_theme_cache()
 
 
-def install_standard_themes():
-	"""Insert or refresh the shipped themes.
-
-	Standard themes are owned by the app: they are rewritten on every migrate so
-	an upgrade can correct a palette. Anything a user creates is left alone, and
-	the intended way to tweak a shipped theme is to duplicate it.
-	"""
-	for spec in STANDARD_THEMES:
-		values = dict(spec, is_standard=1, enabled=1)
-		name = spec["theme_name"]
-
-		if frappe.db.exists("Frappe Theme", name):
-			doc = frappe.get_doc("Frappe Theme", name)
-			doc.update(values)
-			doc.save(ignore_permissions=True)
-		else:
-			doc = frappe.get_doc({"doctype": "Frappe Theme", **values})
-			doc.insert(ignore_permissions=True)
-
-
-def set_default_theme():
-	settings = frappe.get_single("Frappe Theme Settings")
-	if not settings.default_theme and frappe.db.exists("Frappe Theme", "Emerald Light"):
-		settings.default_theme = "Emerald Light"
-		settings.save(ignore_permissions=True)
-
-
 def before_uninstall():
-	"""Take the custom field with us so User stops pointing at a missing doctype."""
-	frappe.flags.in_uninstall = True
-	if frappe.db.exists("Custom Field", "User-frappe_theme"):
-		frappe.delete_doc("Custom Field", "User-frappe_theme", ignore_permissions=True, force=True)
+	from frappe_themes.api import clear_theme_cache
+
+	clear_theme_cache()

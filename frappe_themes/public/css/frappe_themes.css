@@ -1,91 +1,169 @@
 /* Copyright (c) 2026, Ajish and contributors
- * Styles for the theme switcher cards.
- *
- * Only the switcher is styled here. Themes themselves never ship as CSS files -
- * they are generated per site and delivered in the boot payload.
+ * Styles for the Frappe Theme Settings form: the live-preview mock-up and the
+ * preset swatches. Themes themselves never ship CSS files - each site's is
+ * generated from its own settings and delivered in the boot payload.
  */
 
-/* The stock grid is a single flex row sized for three cards. A catalogue needs
-   to wrap. */
-.theme-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-	gap: 12px;
-	max-height: 60vh;
-	overflow-y: auto;
-	padding: 2px;
+/* --- live mock-up ------------------------------------------------------- */
+
+.ft-mockup {
+	border: 1px solid var(--outline-gray-2);
+	border-radius: var(--radius-lg);
+	overflow: hidden;
+	margin-bottom: 4px;
 }
 
-.ft-card-wrapper {
-	flex: none;
-}
-
-/* A miniature of the desk: rail on the left, page on the right. Painted with
-   inline colours from the theme's own generated ramps. */
-.ft-preview {
-	height: 96px;
+.ft-mockup-shot {
 	display: flex;
-	gap: 0;
-	padding: 0;
+	height: 190px;
 }
 
-.ft-preview-rail {
-	width: 34%;
+.ft-mockup-rail {
+	width: 30%;
+	padding: 12px 10px;
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
-	padding: 10px 8px;
+	gap: 8px;
 }
 
-.ft-preview-page {
-	flex: 1;
+.ft-mockup-brand {
+	width: 18px;
+	height: 18px;
+	border-radius: 5px;
+	margin-bottom: 4px;
+}
+
+.ft-mockup-row {
+	height: 18px;
+	border-radius: 5px;
 	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	padding: 10px 8px;
-	min-width: 0;
+	align-items: center;
+	padding: 0 8px;
 }
 
-.ft-dot {
-	width: 12px;
-	height: 12px;
-	border-radius: 4px;
-	margin-bottom: 2px;
-}
-
-.ft-line {
+.ft-mockup-row i {
+	display: block;
 	height: 5px;
+	width: 65%;
 	border-radius: 3px;
+	font-style: normal;
+}
+
+.ft-mockup-main {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.ft-mockup-topbar {
+	height: 30px;
+	display: flex;
+	align-items: center;
+	padding: 0 14px;
+}
+
+.ft-mockup-topbar i {
+	display: block;
+	height: 5px;
+	width: 60px;
+	border-radius: 3px;
+}
+
+.ft-mockup-body {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 14px 16px 8px;
+}
+
+.ft-mockup-title {
+	height: 9px;
+	width: 40%;
+	border-radius: 3px;
+}
+
+.ft-mockup-btn {
+	height: 16px;
+	width: 46px;
+	border-radius: 5px;
+}
+
+.ft-mockup-card {
+	margin: 6px 16px 14px;
+	flex: 1;
+	border: 1px solid;
+	border-radius: 8px;
+	padding: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.ft-mockup-card i {
+	display: block;
+	height: 6px;
 	width: 80%;
-	opacity: 0.75;
-}
-
-.ft-line.short {
-	width: 55%;
-}
-
-.ft-line.wide {
-	width: 92%;
-	height: 7px;
-	opacity: 1;
-}
-
-.ft-chip {
-	width: 34px;
-	height: 10px;
-	border-radius: 4px;
-	margin-top: 2px;
-}
-
-.ft-rule {
-	height: 1px;
-	width: 100%;
+	border-radius: 3px;
 	opacity: 0.8;
 }
 
-.theme-card-label .ft-mode {
-	display: block;
-	font-weight: 400;
-	color: var(--ink-gray-5);
+.ft-mockup-card i.chip {
+	width: 44px;
+	height: 10px;
+	opacity: 1;
+	margin-top: auto;
+}
+
+.ft-mockup-caption {
+	padding: 8px 12px;
 	font-size: var(--text-xs);
+	color: var(--ink-gray-5);
+	background: var(--surface-elevation-1);
+	border-top: 1px solid var(--outline-gray-1);
+	text-align: center;
+}
+
+/* --- presets ------------------------------------------------------------- */
+
+.ft-presets-label {
+	font-size: var(--text-xs);
+	color: var(--ink-gray-5);
+	margin-bottom: 6px;
+}
+
+.ft-presets {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-bottom: 16px;
+}
+
+.ft-preset {
+	width: 34px;
+	height: 34px;
+	border-radius: 50%;
+	padding: 0;
+	border: 1px solid var(--outline-gray-2);
+	cursor: pointer;
+	position: relative;
+	overflow: hidden;
+	transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.ft-preset:hover {
+	transform: scale(1.08);
+	box-shadow: var(--shadow-sm);
+}
+
+.ft-preset-a {
+	position: absolute;
+	inset: 0;
+	clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
+.ft-preset-b {
+	position: absolute;
+	inset: 0;
+	clip-path: polygon(100% 0, 100% 100%, 0 100%);
 }

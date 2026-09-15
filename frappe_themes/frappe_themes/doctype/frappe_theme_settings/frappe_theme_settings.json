@@ -1,47 +1,221 @@
 {
  "actions": [],
- "creation": "2026-09-13 10:00:00.000000",
+ "creation": "2026-09-15 00:00:00.000000",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "default_theme",
-  "column_break_main",
-  "allow_user_override",
-  "enforce_default"
+  "use_default_theme",
+  "mockup_html",
+  "default_theme_help",
+  "presets_html",
+  "section_sidebar",
+  "sidebar_background",
+  "sidebar_text_color",
+  "column_break_sidebar",
+  "sidebar_font_size",
+  "section_navbar",
+  "navbar_background",
+  "navbar_text_color",
+  "section_page",
+  "page_background",
+  "card_background",
+  "column_break_page",
+  "text_color",
+  "border_color",
+  "section_accent",
+  "accent_color",
+  "section_typography",
+  "font_family",
+  "column_break_typography",
+  "base_font_size",
+  "section_branding",
+  "app_logo",
+  "column_break_branding",
+  "show_logo_on_splash_screen",
+  "show_logo_on_login_page"
  ],
  "fields": [
   {
-   "description": "Applied to anyone who has not picked a theme of their own.",
-   "fieldname": "default_theme",
-   "fieldtype": "Link",
-   "label": "Default Theme",
-   "options": "Frappe Theme"
+   "default": "1",
+   "description": "Shows the normal, unmodified Frappe UI. Turn this off to apply the colours and branding below.",
+   "fieldname": "use_default_theme",
+   "fieldtype": "Check",
+   "label": "Use Default Theme"
   },
   {
-   "fieldname": "column_break_main",
+   "fieldname": "mockup_html",
+   "fieldtype": "HTML"
+  },
+  {
+   "depends_on": "eval:doc.use_default_theme",
+   "fieldname": "default_theme_help",
+   "fieldtype": "HTML",
+   "options": "<div class=\"text-muted small\" style=\"padding: 4px 0 8px;\">The desk is showing stock Frappe. Turn off <b>Use Default Theme</b> to set colours below.</div>"
+  },
+  {
+   "depends_on": "eval:!doc.use_default_theme",
+   "fieldname": "presets_html",
+   "fieldtype": "HTML"
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:!doc.use_default_theme",
+   "fieldname": "section_sidebar",
+   "fieldtype": "Section Break",
+   "label": "Sidebar"
+  },
+  {
+   "description": "The panel on the left, and its slide-out on narrow screens.",
+   "fieldname": "sidebar_background",
+   "fieldtype": "Color",
+   "label": "Sidebar Background"
+  },
+  {
+   "description": "Leave blank to pick black or white automatically, whichever reads better on the background above.",
+   "fieldname": "sidebar_text_color",
+   "fieldtype": "Color",
+   "label": "Sidebar Text Colour"
+  },
+  {
+   "fieldname": "column_break_sidebar",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Leave blank to use Frappe's own size.",
+   "fieldname": "sidebar_font_size",
+   "fieldtype": "Select",
+   "label": "Sidebar Font Size (px)",
+   "options": "\n11\n12\n13\n14\n15\n16"
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:!doc.use_default_theme",
+   "fieldname": "section_navbar",
+   "fieldtype": "Section Break",
+   "label": "Top Bar"
+  },
+  {
+   "description": "The bar across the very top. Independent of the sidebar - set it separately, or leave blank to match the sidebar.",
+   "fieldname": "navbar_background",
+   "fieldtype": "Color",
+   "label": "Top Bar Background"
+  },
+  {
+   "description": "Leave blank to pick black or white automatically.",
+   "fieldname": "navbar_text_color",
+   "fieldtype": "Color",
+   "label": "Top Bar Text Colour"
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:!doc.use_default_theme",
+   "fieldname": "section_page",
+   "fieldtype": "Section Break",
+   "label": "Page & Records"
+  },
+  {
+   "description": "The working area behind everything - list views, forms, reports.",
+   "fieldname": "page_background",
+   "fieldtype": "Color",
+   "label": "Page Background"
+  },
+  {
+   "description": "Cards, table rows and form sections that sit above the page.",
+   "fieldname": "card_background",
+   "fieldtype": "Color",
+   "label": "Card / Record Background"
+  },
+  {
+   "fieldname": "column_break_page",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Body text: record data, column values, labels.",
+   "fieldname": "text_color",
+   "fieldtype": "Color",
+   "label": "Text Colour"
+  },
+  {
+   "description": "Table borders and dividers. Leave blank to derive one automatically.",
+   "fieldname": "border_color",
+   "fieldtype": "Color",
+   "label": "Border Colour"
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:!doc.use_default_theme",
+   "fieldname": "section_accent",
+   "fieldtype": "Section Break",
+   "label": "Accent"
+  },
+  {
+   "description": "Buttons, links, focus rings and the selected sidebar row. If it does not contrast enough with its own button text, a safely adjusted shade is used for buttons only - links and the sidebar still use this colour exactly.",
+   "fieldname": "accent_color",
+   "fieldtype": "Color",
+   "label": "Accent Colour",
+   "reqd": 1
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:!doc.use_default_theme",
+   "fieldname": "section_typography",
+   "fieldtype": "Section Break",
+   "label": "Typography"
+  },
+  {
+   "default": "Inter (Default)",
+   "fieldname": "font_family",
+   "fieldtype": "Select",
+   "label": "Font",
+   "options": "Inter (Default)\nSystem UI\nSerif\nMonospace"
+  },
+  {
+   "fieldname": "column_break_typography",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Scales every size in the desk proportionally, so headings keep step with body text. Leave blank for Frappe's own 14px.",
+   "fieldname": "base_font_size",
+   "fieldtype": "Select",
+   "label": "Base Font Size (px)",
+   "options": "\n12\n13\n14\n15\n16\n17"
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:!doc.use_default_theme",
+   "fieldname": "section_branding",
+   "fieldtype": "Section Break",
+   "label": "Branding"
+  },
+  {
+   "fieldname": "app_logo",
+   "fieldtype": "Attach Image",
+   "label": "Logo"
+  },
+  {
+   "fieldname": "column_break_branding",
    "fieldtype": "Column Break"
   },
   {
    "default": "1",
-   "description": "Let users pick their own theme from the switcher.",
-   "fieldname": "allow_user_override",
+   "description": "The loading screen shown while the desk boots.",
+   "fieldname": "show_logo_on_splash_screen",
    "fieldtype": "Check",
-   "label": "Allow User Override"
+   "label": "Show on Splash Screen"
   },
   {
-   "default": "0",
-   "depends_on": "eval:!doc.allow_user_override",
-   "description": "Apply the default theme to everyone, ignoring personal choices.",
-   "fieldname": "enforce_default",
+   "default": "1",
+   "description": "The sign-in page.",
+   "fieldname": "show_logo_on_login_page",
    "fieldtype": "Check",
-   "label": "Enforce Default"
+   "label": "Show on Login Page"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-13 10:00:00.000000",
+ "modified": "2026-09-15 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Frappe Themes",
  "name": "Frappe Theme Settings",

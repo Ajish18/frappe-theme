@@ -5,167 +5,239 @@ import frappe
 from frappe.tests import IntegrationTestCase, UnitTestCase
 
 from frappe_themes import theme_engine as te
-from frappe_themes.standard_themes import STANDARD_THEMES
+from frappe_themes.standard_themes import PRESETS
+
+SAMPLE_VALUES = {
+	"use_default_theme": 0,
+	"sidebar_background": "#0a4a30",
+	"accent_color": "#00b964",
+	"page_background": "#ffffff",
+	"card_background": "#f7faf8",
+	"text_color": "#15201b",
+}
 
 
-def contrast_ratio(a: str, b: str) -> float:
-	def lum(value):
-		r, g, b_ = (int(value.lstrip("#")[i : i + 2], 16) / 255 for i in (0, 2, 4))
-		return te.relative_luminance(r, g, b_)
+class TestColorMath(UnitTestCase):
+	def test_readable_ink_picks_by_measured_contrast(self):
+		self.assertEqual(te.readable_ink("#0a4a30"), "#ffffff")  # dark green -> white
+		self.assertEqual(te.readable_ink("#f5f5f5"), "#000000")  # near white -> black
 
-	la, lb = lum(a), lum(b)
-	hi, lo = max(la, lb), min(la, lb)
-	return (hi + 0.05) / (lo + 0.05)
+	def test_contrast_of_matches_wcag_formula(self):
+		# Black on white is the maximum ratio, 21:1.
+		self.assertAlmostEqual(te.contrast_of("#000000", "#ffffff"), 21.0, places=1)
+		self.assertEqual(te.contrast_of("#123456", "#123456"), 1.0)
 
+	def test_safe_button_color_fixes_low_contrast(self):
+		# A bright green against white text fails AA outright.
+		accent = "#00b964"
+		white = "#ffffff"
+		self.assertLess(te.contrast_of(accent, white), 4.5)
 
-class TestThemeEngine(UnitTestCase):
-	def test_base_ramps_parse(self):
-		"""The Espresso token file is the input to everything else."""
-		ramps = te.parse_base_ramps()
-		for mode in ("light", "dark"):
-			self.assertIn("gray", ramps[mode])
-			self.assertIn("blue", ramps[mode])
-			# 50 through 950 - the ramp Frappe actually ships.
-			self.assertGreaterEqual(len(ramps[mode]["gray"]), 11)
-			for value in ramps[mode]["gray"].values():
-				self.assertRegex(value, r"^#[0-9a-f]{6}$")
+		button = te.safe_button_color(accent, white)
+		self.assertGreaterEqual(te.contrast_of(button, white), 4.49)
 
-	def test_retint_preserves_luminance(self):
-		"""A re-tinted stop is as bright as the stop it replaces.
+	def test_safe_button_color_leaves_already_safe_colors_alone(self):
+		accent = "#025a2f"  # already dark enough for white text
+		self.assertEqual(te.safe_button_color(accent, "#ffffff"), accent)
 
-		This is the property the whole approach rests on: keep every stop's
-		luminance and the contrast ratios Frappe was designed against survive the
-		re-tint, whatever hue the theme uses.
-		"""
-		base = te.parse_base_ramps()
-		for spec in STANDARD_THEMES:
-			ramps = te.build_ramps(spec)
-			base_mode = base[spec["mode"].lower()]
-			for family in (te.NEUTRAL_FAMILY, te.ACCENT_FAMILY):
-				for stop, value in ramps[family].items():
-					drift = abs(
-						contrast_ratio(value, "#ffffff") - contrast_ratio(base_mode[family][stop], "#ffffff")
-					)
-					self.assertLess(
-						drift,
-						0.35,
-						f"{spec['slug']} {family}-{stop} drifted {drift:.2f} from upstream",
-					)
+	def test_mix_endpoints(self):
+		self.assertEqual(te.mix("#000000", "#ffffff", 0), "#000000")
+		self.assertEqual(te.mix("#000000", "#ffffff", 1), "#ffffff")
 
-	def test_body_text_stays_accessible(self):
-		"""Body text on the page background clears WCAG AA in every theme."""
-		for spec in STANDARD_THEMES:
-			ramps = te.build_ramps(spec)
-			preview = te.get_preview(spec)
-			ratio = contrast_ratio(preview["ink"], preview["page"])
-			self.assertGreater(ratio, 4.5, f"{spec['slug']} body text only {ratio:.2f}:1")
-
-	def test_contrast_sidebar_is_legible(self):
-		"""Sidebar labels clear AA against the dark rail they sit on."""
-		for spec in STANDARD_THEMES:
-			if spec.get("sidebar_style") != "Contrast":
-				continue
-			preview = te.get_preview(spec)
-			ratio = contrast_ratio(preview["sidebar_ink"], preview["sidebar"])
-			self.assertGreater(ratio, 4.5, f"{spec['slug']} sidebar text only {ratio:.2f}:1")
-
-	def test_css_is_scoped_to_the_theme(self):
-		"""Nothing may leak outside the theme's own attribute selector."""
-		for spec in STANDARD_THEMES:
-			css = te.build_theme_css(spec)
-			self.assertIn(f'html[data-ft-theme="{spec["slug"]}"]', css)
-			for line in css.splitlines():
-				stripped = line.strip()
-				if stripped.endswith("{"):
-					self.assertIn(
-						"data-ft-theme",
-						stripped,
-						f"{spec['slug']} emits an unscoped rule: {stripped}",
-					)
-
-	def test_contrast_themes_repaint_the_rail(self):
-		for spec in STANDARD_THEMES:
-			css = te.build_theme_css(spec)
-			if spec.get("sidebar_style") == "Contrast":
-				self.assertIn("--desk-sidebar-bg", css)
-				self.assertIn(".body-sidebar", css)
-				self.assertIn("--ink-gray-9", css)
-			else:
-				self.assertNotIn(".body-sidebar", css)
-
-	def test_every_standard_theme_is_distinct(self):
-		slugs = [s["slug"] for s in STANDARD_THEMES]
-		self.assertEqual(len(slugs), len(set(slugs)))
-		self.assertEqual(len([s for s in STANDARD_THEMES if s["mode"] == "Light"]), 5)
-		self.assertEqual(len([s for s in STANDARD_THEMES if s["mode"] == "Dark"]), 5)
+	def test_overlay_is_valid_rgba(self):
+		result = te.overlay("#ffffff", 0.5)
+		self.assertRegex(result, r"^rgba\(\d+, \d+, \d+, 0\.5\)$")
 
 
-class TestThemeIntegration(IntegrationTestCase):
-	def test_standard_themes_installed(self):
-		for spec in STANDARD_THEMES:
-			self.assertTrue(
-				frappe.db.exists("Frappe Theme", spec["theme_name"]),
-				f"{spec['theme_name']} was not installed",
-			)
+class TestBuildSettingsCss(UnitTestCase):
+	def test_default_theme_emits_nothing(self):
+		self.assertEqual(te.build_settings_css({"use_default_theme": 1}), "")
+		self.assertEqual(te.build_settings_css({}), "")
 
-	def test_user_field_exists(self):
-		self.assertTrue(frappe.db.exists("Custom Field", "User-frappe_theme"))
+	def test_active_theme_is_scoped(self):
+		css = te.build_settings_css(SAMPLE_VALUES)
+		self.assertIn('html[data-ft-active="1"]', css)
+		for line in css.splitlines():
+			stripped = line.strip()
+			if stripped.endswith("{") and "/*" not in stripped:
+				self.assertTrue(
+					"data-ft-active" in stripped or ".page-card-head" in stripped or ".splash" in stripped,
+					f"unscoped rule: {stripped}",
+				)
 
-	def test_slug_is_generated(self):
-		doc = frappe.get_doc(
-			{
-				"doctype": "Frappe Theme",
-				"theme_name": "Test Slug Theme",
-				"mode": "Light",
-				"accent": "#00b964",
-				"neutral_tint": "#0d4f33",
-			}
-		).insert()
-		self.addCleanup(lambda: frappe.delete_doc("Frappe Theme", doc.name, force=True))
-		self.assertEqual(doc.slug, "test-slug-theme")
+	def test_accent_reaches_buttons_not_only_links(self):
+		css = te.build_settings_css(SAMPLE_VALUES)
+		self.assertIn("--btn-primary", css)
+		self.assertIn("--primary:", css)
 
-	def test_boot_payload_carries_css(self):
-		"""What the desk receives is a slug plus the CSS to paint it with."""
+	def test_each_color_field_drives_its_own_token(self):
+		css = te.build_settings_css(SAMPLE_VALUES)
+		self.assertIn("--surface-base: #ffffff;", css)
+		self.assertIn("--ink-gray-8: #15201b;", css)
+		self.assertIn("--surface-sidebar: #0a4a30;", css)
+
+	def test_independent_sidebar_and_navbar(self):
+		"""Setting only the sidebar colour must not paint the navbar the same."""
+		values = dict(SAMPLE_VALUES, navbar_background="#123456")
+		css = te.build_settings_css(values)
+		self.assertIn("#123456", css)
+		# the navbar's own block sets --navbar-bg to its own colour, not the rail's
+		navbar_block = css[css.index("/* navbar */") :]
+		self.assertIn("#123456", navbar_block)
+
+	def test_navbar_falls_back_to_sidebar_when_blank(self):
+		"""The field's own description promises this."""
+		values = {k: v for k, v in SAMPLE_VALUES.items() if k != "navbar_background"}
+		css = te.build_settings_css(values)
+		navbar_block = css[css.index("/* navbar */") :]
+		self.assertIn(SAMPLE_VALUES["sidebar_background"], navbar_block)
+
+	def test_navbar_own_color_does_not_leak_into_sidebar_tokens(self):
+		values = dict(SAMPLE_VALUES, navbar_background="#123456")
+		css = te.build_settings_css(values)
+		navbar_block = css[css.index("/* navbar */") :]
+		self.assertNotIn("--desk-sidebar-bg", navbar_block)
+		self.assertIn("--navbar-bg: #123456;", navbar_block)
+
+	def test_blank_sidebar_ink_is_computed_not_hardcoded(self):
+		css = te.build_settings_css(SAMPLE_VALUES)  # sidebar_text_color left blank
+		# dark green sidebar -> white ink
+		self.assertIn("rgba(255, 255, 255,", css)
+
+	def test_explicit_sidebar_ink_is_honoured(self):
+		values = dict(SAMPLE_VALUES, sidebar_text_color="#ffd400")
+		css = te.build_settings_css(values)
+		r, g, b = te.to_rgb_tuple("#ffd400")
+		self.assertIn(f"rgba({r}, {g}, {b},", css)
+
+	def test_font_size_scales_the_ramp(self):
+		base = te.build_settings_css(SAMPLE_VALUES)
+		self.assertNotIn("--text-base:", base)
+
+		bigger = te.build_settings_css(dict(SAMPLE_VALUES, base_font_size="17"))
+		self.assertIn("--text-base: 17px;", bigger)
+
+	def test_font_family_override(self):
+		css = te.build_settings_css(dict(SAMPLE_VALUES, font_family="Serif"))
+		self.assertIn("--font-stack:", css)
+		self.assertIn("Georgia", css)
+
+	def test_inter_default_emits_no_font_override(self):
+		css = te.build_settings_css(dict(SAMPLE_VALUES, font_family="Inter (Default)"))
+		self.assertNotIn("--font-stack:", css)
+
+	def test_logo_css_only_when_toggled_on(self):
+		values = dict(SAMPLE_VALUES, app_logo="/files/logo.png", show_logo_on_splash_screen=1)
+		css = te.build_settings_css(values)
+		self.assertIn("/files/logo.png", css)
+		self.assertIn(".splash img", css)
+		self.assertNotIn(".app-logo", css)  # login toggle left off
+
+	def test_body_text_clears_aa_in_every_preset(self):
+		for preset in PRESETS:
+			values = dict(preset, use_default_theme=0)
+			preview = te.get_preview(values)
+			ratio = te.contrast_of(preview["text"], preview["page"])
+			self.assertGreater(ratio, 4.5, f"{preset['label']}: body text only {ratio:.2f}:1")
+
+	def test_sidebar_ink_clears_aa_in_every_preset(self):
+		for preset in PRESETS:
+			values = dict(preset, use_default_theme=0)
+			preview = te.get_preview(values)
+			ratio = te.contrast_of(preview["sidebar_ink"], preview["sidebar"])
+			self.assertGreater(ratio, 4.5, f"{preset['label']}: sidebar text only {ratio:.2f}:1")
+
+	def test_button_clears_aa_in_every_preset(self):
+		for preset in PRESETS:
+			values = dict(preset, use_default_theme=0)
+			preview = te.get_preview(values)
+			ink = te.readable_ink(preview["button"])
+			ratio = te.contrast_of(preview["button"], ink)
+			self.assertGreaterEqual(ratio, 4.49, f"{preset['label']}: button only {ratio:.2f}:1")
+
+
+class TestThemeSettingsIntegration(IntegrationTestCase):
+	def setUp(self):
+		self._before = frappe.get_single("Frappe Theme Settings").as_dict_for_css()
+
+	def tearDown(self):
+		# `db.set_value` rather than `doc.save()`: cleanup restores whatever was
+		# there before, unconditionally - it is not itself the thing under test,
+		# so it has no business tripping the optimistic-lock check a real edit
+		# should.
+		frappe.db.set_single_value("Frappe Theme Settings", self._before)
+		frappe.db.commit()
+
+		from frappe_themes.api import clear_theme_cache
+
+		clear_theme_cache()
+		frappe.clear_cache()
+
+	def test_default_state_is_the_stock_ui(self):
+		doc = frappe.get_single("Frappe Theme Settings")
+		doc.use_default_theme = 1
+		doc.save(ignore_permissions=True)
+
 		from frappe_themes.api import get_boot_info
 
-		frappe.db.set_value("User", "Administrator", "frappe_theme", "Emerald Light")
-		frappe.clear_cache(user="Administrator")
-		self.addCleanup(
-			lambda: frappe.db.set_value("User", "Administrator", "frappe_theme", None)
-		)
+		self.assertEqual(get_boot_info(), {"active": False, "css": ""})
+
+	def test_saving_a_custom_theme_activates_it(self):
+		doc = frappe.get_single("Frappe Theme Settings")
+		doc.use_default_theme = 0
+		doc.accent_color = "#00b964"
+		doc.sidebar_background = "#0a4a30"
+		doc.save(ignore_permissions=True)
+
+		from frappe_themes.api import get_boot_info
 
 		boot = get_boot_info()
-		self.assertEqual(boot["slug"], "emerald-light")
-		self.assertEqual(boot["mode"], "Light")
-		self.assertIn('html[data-ft-theme="emerald-light"]', boot["css"])
-		self.assertIn("--desk-sidebar-bg", boot["css"])
+		self.assertTrue(boot["active"])
+		self.assertIn('html[data-ft-active="1"]', boot["css"])
 
-	def test_catalogue_shape(self):
-		from frappe_themes.api import get_catalogue
+	def test_invalid_color_is_rejected(self):
+		doc = frappe.get_single("Frappe Theme Settings")
+		doc.use_default_theme = 0
+		doc.accent_color = "not-a-color"
+		self.assertRaises(frappe.ValidationError, doc.save, ignore_permissions=True)
 
-		frappe.cache.delete_value("frappe_themes_catalogue")
-		catalogue = get_catalogue()
-		self.assertGreaterEqual(len(catalogue), 10)
-		for entry in catalogue:
-			for key in ("slug", "label", "mode", "preview", "css"):
-				self.assertIn(key, entry)
-			for swatch in ("page", "sidebar", "accent", "ink"):
-				self.assertRegex(entry["preview"][swatch], r"^#[0-9a-f]{6}$")
+	def test_missing_accent_is_rejected_for_custom_theme(self):
+		doc = frappe.get_single("Frappe Theme Settings")
+		doc.use_default_theme = 0
+		doc.accent_color = None
+		self.assertRaises(frappe.ValidationError, doc.save, ignore_permissions=True)
 
-	def test_editing_a_theme_invalidates_its_cache(self):
-		from frappe_themes.api import get_theme_css
+	def test_saving_invalidates_the_cache(self):
+		from frappe_themes.api import get_active_css
 
-		before = get_theme_css("Emerald Light")
-		doc = frappe.get_doc("Frappe Theme", "Emerald Light")
-		original = doc.accent
-		doc.accent = "#ff0000"
-		doc.save()
-		self.addCleanup(lambda: self._restore(original))
+		doc = frappe.get_single("Frappe Theme Settings")
+		doc.reload()
+		doc.use_default_theme = 0
+		doc.accent_color = "#0d8ef8"
+		doc.sidebar_background = "#12305c"
+		doc.save(ignore_permissions=True)
+		before = get_active_css()
 
-		after = get_theme_css("Emerald Light")
-		self.assertNotEqual(before, after, "cached CSS survived an edit")
+		doc.reload()
+		doc.accent_color = "#ff0000"
+		doc.save(ignore_permissions=True)
+		after = get_active_css()
 
-	def _restore(self, accent):
-		doc = frappe.get_doc("Frappe Theme", "Emerald Light")
-		doc.accent = accent
-		doc.save()
+		self.assertNotEqual(before, after)
+
+	def test_preview_css_never_writes_to_the_database(self):
+		from frappe_themes.api import preview_css
+
+		before = frappe.get_single("Frappe Theme Settings").as_dict_for_css()
+		preview_css({"use_default_theme": 0, "accent_color": "#ff00ff", "sidebar_background": "#111111"})
+		after = frappe.get_single("Frappe Theme Settings").as_dict_for_css()
+		self.assertEqual(before, after)
+
+	def test_no_customization_leaks_onto_other_doctypes(self):
+		"""Installation must not add a field to User or any other doctype - the
+		whole app is one Single doctype plus additive CSS, nothing else."""
+		self.assertFalse(frappe.db.exists("Custom Field", "User-frappe_theme"))
+		module = frappe.get_all("Module Def", filters={"app_name": "frappe_themes"}, pluck="name")
+		self.assertEqual(module, ["Frappe Themes"])
+		doctypes = frappe.get_all("DocType", filters={"module": "Frappe Themes"}, pluck="name")
+		self.assertEqual(doctypes, ["Frappe Theme Settings"])
