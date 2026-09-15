@@ -3,7 +3,7 @@ name = "frappe_themes"
 authors = [
     { name = "Ajish", email = "ajishiyappan1@gmail.com"}
 ]
-description = "Theme catalogue for Frappe Desk and Frappe UI apps"
+description = "Site-wide colour and branding settings for Frappe Desk"
 requires-python = ">=3.10"
 readme = "README.md"
 dynamic = ["version"]
