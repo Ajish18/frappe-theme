@@ -8,7 +8,7 @@
  *
  *   1. Paint the saved theme as early as the desk lets us, from `frappe.boot`
  *      (every page load, every user).
- *   2. On the Frappe Theme Settings form itself, live-preview colours as they
+ *   2. On the Theme Settings form itself, live-preview colours as they
  *      are picked - before saving - and apply them for real once a System
  *      Manager confirms.
  *

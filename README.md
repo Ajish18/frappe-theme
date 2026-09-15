@@ -3,7 +3,7 @@
 Site-wide colour and branding settings for the Frappe Desk - one settings
 page, no separate theme records to manage.
 
-Open **Frappe Theme Settings**, turn off **Use Default Theme**, and pick a
+Open **Theme Settings**, turn off **Use Default Theme**, and pick a
 colour for each named zone of the desk: Sidebar, Top Bar, Page & Records, and
 Accent. Every field previews live on the real desk as you edit it - no
 separate mock-up to imagine from. Save, confirm, done - it applies to every

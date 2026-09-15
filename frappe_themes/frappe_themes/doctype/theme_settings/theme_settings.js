@@ -2,7 +2,7 @@
 // For license information, please see license.txt
 
 /**
- * Frappe Theme Settings - the form is the theme editor.
+ * Theme Settings - the form is the theme editor.
  *
  * Every colour field re-renders a small mock-up of the desk (rail, top bar,
  * a record card, a button) using the exact values on the form right now, and
@@ -32,7 +32,7 @@ const FT_FIELDS = [
 	"show_logo_on_login_page",
 ];
 
-frappe.ui.form.on("Frappe Theme Settings", {
+frappe.ui.form.on("Theme Settings", {
 	refresh(frm) {
 		frm.ft = frm.ft || new FrappeThemeEditor(frm);
 		frm.ft.refresh();

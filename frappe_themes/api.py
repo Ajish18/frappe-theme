@@ -25,7 +25,7 @@ def get_active_css() -> str:
 
 	from frappe_themes.theme_engine import build_settings_css
 
-	settings = frappe.get_cached_doc("Frappe Theme Settings")
+	settings = frappe.get_cached_doc("Theme Settings")
 	css = build_settings_css(settings.as_dict_for_css())
 	frappe.cache.set_value(CACHE_KEY, css)
 	return css
@@ -35,7 +35,7 @@ def get_boot_info() -> dict:
 	"""What the desk needs, attached to boot so the theme paints before anything
 	else renders - see :mod:`frappe_themes.boot`."""
 	try:
-		settings = frappe.get_cached_doc("Frappe Theme Settings")
+		settings = frappe.get_cached_doc("Theme Settings")
 	except frappe.DoesNotExistError:
 		return {"active": False, "css": ""}
 

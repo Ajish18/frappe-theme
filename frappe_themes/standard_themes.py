@@ -3,7 +3,7 @@
 """Preset colour sets.
 
 Not stored as records and never applied on their own - these only fill the
-Frappe Theme Settings form's colour pickers as a starting point (see
+Theme Settings form's colour pickers as a starting point (see
 `presets_html` on the doctype and the "Load a Preset" buttons it renders). An
 administrator still reviews, adjusts and saves; nothing here writes to the
 database by itself.

@@ -158,14 +158,14 @@ class TestBuildSettingsCss(UnitTestCase):
 
 class TestThemeSettingsIntegration(IntegrationTestCase):
 	def setUp(self):
-		self._before = frappe.get_single("Frappe Theme Settings").as_dict_for_css()
+		self._before = frappe.get_single("Theme Settings").as_dict_for_css()
 
 	def tearDown(self):
 		# `db.set_value` rather than `doc.save()`: cleanup restores whatever was
 		# there before, unconditionally - it is not itself the thing under test,
 		# so it has no business tripping the optimistic-lock check a real edit
 		# should.
-		frappe.db.set_single_value("Frappe Theme Settings", self._before)
+		frappe.db.set_single_value("Theme Settings", self._before)
 		frappe.db.commit()
 
 		from frappe_themes.api import clear_theme_cache
@@ -174,7 +174,7 @@ class TestThemeSettingsIntegration(IntegrationTestCase):
 		frappe.clear_cache()
 
 	def test_default_state_is_the_stock_ui(self):
-		doc = frappe.get_single("Frappe Theme Settings")
+		doc = frappe.get_single("Theme Settings")
 		doc.use_default_theme = 1
 		doc.save(ignore_permissions=True)
 
@@ -183,7 +183,7 @@ class TestThemeSettingsIntegration(IntegrationTestCase):
 		self.assertEqual(get_boot_info(), {"active": False, "css": ""})
 
 	def test_saving_a_custom_theme_activates_it(self):
-		doc = frappe.get_single("Frappe Theme Settings")
+		doc = frappe.get_single("Theme Settings")
 		doc.use_default_theme = 0
 		doc.accent_color = "#00b964"
 		doc.sidebar_background = "#0a4a30"
@@ -196,13 +196,13 @@ class TestThemeSettingsIntegration(IntegrationTestCase):
 		self.assertIn('html[data-ft-active="1"]', boot["css"])
 
 	def test_invalid_color_is_rejected(self):
-		doc = frappe.get_single("Frappe Theme Settings")
+		doc = frappe.get_single("Theme Settings")
 		doc.use_default_theme = 0
 		doc.accent_color = "not-a-color"
 		self.assertRaises(frappe.ValidationError, doc.save, ignore_permissions=True)
 
 	def test_missing_accent_is_rejected_for_custom_theme(self):
-		doc = frappe.get_single("Frappe Theme Settings")
+		doc = frappe.get_single("Theme Settings")
 		doc.use_default_theme = 0
 		doc.accent_color = None
 		self.assertRaises(frappe.ValidationError, doc.save, ignore_permissions=True)
@@ -210,7 +210,7 @@ class TestThemeSettingsIntegration(IntegrationTestCase):
 	def test_saving_invalidates_the_cache(self):
 		from frappe_themes.api import get_active_css
 
-		doc = frappe.get_single("Frappe Theme Settings")
+		doc = frappe.get_single("Theme Settings")
 		doc.reload()
 		doc.use_default_theme = 0
 		doc.accent_color = "#0d8ef8"
@@ -228,9 +228,9 @@ class TestThemeSettingsIntegration(IntegrationTestCase):
 	def test_preview_css_never_writes_to_the_database(self):
 		from frappe_themes.api import preview_css
 
-		before = frappe.get_single("Frappe Theme Settings").as_dict_for_css()
+		before = frappe.get_single("Theme Settings").as_dict_for_css()
 		preview_css({"use_default_theme": 0, "accent_color": "#ff00ff", "sidebar_background": "#111111"})
-		after = frappe.get_single("Frappe Theme Settings").as_dict_for_css()
+		after = frappe.get_single("Theme Settings").as_dict_for_css()
 		self.assertEqual(before, after)
 
 	def test_no_customization_leaks_onto_other_doctypes(self):
@@ -240,4 +240,4 @@ class TestThemeSettingsIntegration(IntegrationTestCase):
 		module = frappe.get_all("Module Def", filters={"app_name": "frappe_themes"}, pluck="name")
 		self.assertEqual(module, ["Frappe Themes"])
 		doctypes = frappe.get_all("DocType", filters={"module": "Frappe Themes"}, pluck="name")
-		self.assertEqual(doctypes, ["Frappe Theme Settings"])
+		self.assertEqual(doctypes, ["Theme Settings"])

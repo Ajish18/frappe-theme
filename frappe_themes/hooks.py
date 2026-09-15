@@ -1,3 +1,26 @@
+import os
+
+
+def _versioned(path: str) -> str:
+	"""`path`, with the file's own mtime as a cache-busting query string.
+
+	These two files are plain, unbundled paths - deliberately, so the app needs
+	no build step - which means Frappe never content-hashes their URL the way it
+	does a `.bundle.js`. Without something changing the URL itself, a browser
+	that has already cached the old copy (the default here is 12 hours) keeps
+	using it even after the file on disk changes, silently running stale code
+	against a boot payload it was not written for. The mtime is recomputed once,
+	when this file is imported - which happens on every worker (re)start, i.e.
+	exactly when a source change can actually reach a browser.
+	"""
+	full_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public", path)
+	try:
+		version = int(os.path.getmtime(full_path))
+	except OSError:
+		version = 0
+	return f"/assets/frappe_themes/{path}?v={version}"
+
+
 app_name = "frappe_themes"
 app_title = "Frappe Themes"
 app_publisher = "Ajish"
@@ -5,10 +28,8 @@ app_description = "Site-wide colour and branding settings for Frappe Desk"
 app_email = "ajishiyappan1@gmail.com"
 app_license = "mit"
 
-# Plain paths, not bundles: the client is small, has no imports to resolve and
-# no SCSS to compile, so it needs no build step in the install.
-app_include_js = ["/assets/frappe_themes/js/frappe_themes.js"]
-app_include_css = ["/assets/frappe_themes/css/frappe_themes.css"]
+app_include_js = [_versioned("js/frappe_themes.js")]
+app_include_css = [_versioned("css/frappe_themes.css")]
 
 # The active theme's CSS rides along in boot - see frappe_themes/boot.py and
 # frappe_themes/api.py.

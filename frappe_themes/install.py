@@ -30,7 +30,7 @@ def after_migrate():
 
 
 def setup():
-	settings = frappe.get_single("Frappe Theme Settings")
+	settings = frappe.get_single("Theme Settings")
 	changed = False
 	for fieldname, value in DEFAULTS.items():
 		if not settings.get(fieldname):

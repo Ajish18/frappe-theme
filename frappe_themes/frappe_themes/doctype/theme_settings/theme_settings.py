@@ -22,7 +22,7 @@ COLOR_FIELDS = (
 )
 
 
-class FrappeThemeSettings(Document):
+class ThemeSettings(Document):
 	def validate(self):
 		if self.use_default_theme:
 			return
