@@ -25,6 +25,7 @@
   "border_color",
   "section_accent",
   "accent_color",
+  "button_color",
   "section_typography",
   "font_family",
   "column_break_typography",
@@ -33,7 +34,8 @@
   "app_logo",
   "column_break_branding",
   "show_logo_on_splash_screen",
-  "show_logo_on_login_page"
+  "show_logo_on_login_page",
+  "show_logo_as_app_icon"
  ],
  "fields": [
   {
@@ -96,7 +98,7 @@
    "label": "Top Bar"
   },
   {
-   "description": "The bar across the very top. Independent of the sidebar - set it separately, or leave blank to match the sidebar.",
+   "description": "The breadcrumb/title strip at the top of every page - what you see as \"the top bar\". Independent of the sidebar, or leave blank to match it.",
    "fieldname": "navbar_background",
    "fieldtype": "Color",
    "label": "Top Bar Background"
@@ -150,11 +152,17 @@
    "label": "Accent"
   },
   {
-   "description": "Buttons, links, focus rings and the selected sidebar row. If it does not contrast enough with its own button text, a safely adjusted shade is used for buttons only - links and the sidebar still use this colour exactly.",
+   "description": "Links, focus rings and the selected sidebar row. Also the fallback button colour when Button Colour below is left blank.",
    "fieldname": "accent_color",
    "fieldtype": "Color",
    "label": "Accent Colour",
    "reqd": 1
+  },
+  {
+   "description": "Overrides the accent for buttons specifically. Rendered exactly as picked - leave blank to use a safely-adjusted shade of the accent instead.",
+   "fieldname": "button_color",
+   "fieldtype": "Color",
+   "label": "Button Colour"
   },
   {
    "collapsible": 1,
@@ -210,6 +218,13 @@
    "fieldname": "show_logo_on_login_page",
    "fieldtype": "Check",
    "label": "Show on Login Page"
+  },
+  {
+   "default": "0",
+   "description": "The mark shown top-left in the sidebar - replaces whichever app's own icon would otherwise show there.",
+   "fieldname": "show_logo_as_app_icon",
+   "fieldtype": "Check",
+   "label": "Show as App Icon"
   }
  ],
  "index_web_pages_for_search": 1,

@@ -25,11 +25,13 @@ const FT_FIELDS = [
 	"text_color",
 	"border_color",
 	"accent_color",
+	"button_color",
 	"font_family",
 	"base_font_size",
 	"app_logo",
 	"show_logo_on_splash_screen",
 	"show_logo_on_login_page",
+	"show_logo_as_app_icon",
 ];
 
 frappe.ui.form.on("Theme Settings", {

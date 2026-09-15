@@ -173,7 +173,12 @@ ROOT_SELECTOR = 'html[data-ft-active="1"]'
 # the module switcher/rail in the current desk shell; `.body-sidebar` and
 # `.sidebar-panel` are the in-app sidebar and its slide-out on narrow screens.
 RAIL_SCOPES = (".body-sidebar", ".sidebar-panel", ".dock")
-NAVBAR_SCOPES = (".navbar",)
+# The visible "top bar" in the current dock-based desk shell is `.page-head` -
+# the sticky breadcrumb/title/actions strip at the top of every page - not
+# `.navbar`, which is a thinner legacy element that is easy to mistake it for.
+# Both are themed the same way so the setting means the same thing wherever
+# the desk happens to render it.
+NAVBAR_SCOPES = (".navbar", ".page-head")
 
 # Ink steps as overlay alphas - `ink-gray-6` is the one that matters most,
 # since `.item-anchor` colours every sidebar row label with it.
@@ -295,12 +300,21 @@ def build_settings_css(values: dict) -> str:
 	if accent:
 		global_lines.append(f"\t--primary: {accent};")
 		global_lines.append(f"\t--primary-color: {accent};")
+
+		button_color = values.get("button_color")
 		# `.btn-primary` takes its own text colour from `--neutral`, which
 		# Espresso flips by ambient light/dark mode - not by us - so we pin
-		# `--neutral` too, to whichever pole actually reads on this accent. That
+		# `--neutral` too, to whichever pole actually reads on this button. That
 		# decouples the button's legibility from the viewer's light/dark setting.
-		btn_ink = readable_ink(accent)
-		button = safe_button_color(accent, btn_ink)
+		if button_color:
+			# Explicitly chosen: rendered exactly, never adjusted - the
+			# administrator picked it, unlike the accent's own button fallback
+			# below, which exists precisely because nobody picked one.
+			btn_ink = readable_ink(button_color)
+			button = button_color
+		else:
+			btn_ink = readable_ink(accent)
+			button = safe_button_color(accent, btn_ink)
 		global_lines.append(f"\t--btn-primary: {button};")
 		global_lines.append(f"\t--progress-bar-bg: {button};")
 		global_lines.append(f"\t--neutral: {btn_ink};")
@@ -346,7 +360,12 @@ def build_settings_css(values: dict) -> str:
 		navbar_bg,
 		navbar_ink,
 		None,
-		own_tokens=("--navbar-bg",),
+		# `.page-head` - the breadcrumb/title strip that is the actual visible
+		# "top bar" in the current dock-based desk shell - paints its background
+		# from `--bg-color`/`--fg-color`, not from any token the sidebar's own
+		# block touches, so the navbar colour has to reach those too or the
+		# setting looks like it does nothing.
+		own_tokens=("--navbar-bg", "--bg-color"),
 	)
 	if navbar_lines:
 		lines.append("")
@@ -364,6 +383,16 @@ def build_settings_css(values: dict) -> str:
 			lines.append("")
 			lines.append("/* login page logo */")
 			lines.append(f'.page-card-head .app-logo {{ content: url("{logo}"); }}')
+		if values.get("show_logo_as_app_icon"):
+			lines.append("")
+			lines.append("/* app icon - the mark shown top-left in the sidebar/dock */")
+			# `.header-logo` is a plain container, not an <img> - dock.js fills it
+			# with either an <img> (an app with its own logo_url) or an inline SVG
+			# letter mark (one without). `content: url()` replaces whichever it is
+			# with the uploaded image, so this works the same regardless of which
+			# app is open, without needing to know how that app renders its own
+			# icon.
+			lines.append(f'{ROOT_SELECTOR} .dock-logo .header-logo {{ content: url("{logo}"); }}')
 
 	return "\n".join(lines) + "\n"
 
@@ -386,7 +415,7 @@ def get_preview(values: dict) -> dict:
 		"muted": mix(text_color, page_bg, 0.4),
 		"border": values.get("border_color") or mix(page_bg, text_color, 0.15),
 		"accent": accent,
-		"button": safe_button_color(accent, readable_ink(accent)),
+		"button": values.get("button_color") or safe_button_color(accent, readable_ink(accent)),
 		"sidebar": sidebar_bg,
 		"sidebar_ink": sidebar_ink,
 		"sidebar_muted": overlay(sidebar_ink, 0.55),

@@ -1,6 +1,8 @@
 # Copyright (c) 2026, Ajish and contributors
 # For license information, please see license.txt
 
+import re
+
 import frappe
 from frappe.tests import IntegrationTestCase, UnitTestCase
 
@@ -84,6 +86,42 @@ class TestBuildSettingsCss(UnitTestCase):
 		# the navbar's own block sets --navbar-bg to its own colour, not the rail's
 		navbar_block = css[css.index("/* navbar */") :]
 		self.assertIn("#123456", navbar_block)
+
+	def test_navbar_colours_the_page_head(self):
+		"""The visible top bar in the dock shell is .page-head, not .navbar."""
+		values = dict(SAMPLE_VALUES, navbar_background="#123456")
+		css = te.build_settings_css(values)
+		navbar_block = css[css.index("/* navbar */") :]
+		self.assertIn(".page-head", navbar_block)
+		self.assertIn("--bg-color: #123456;", navbar_block)
+
+	def test_explicit_button_color_is_rendered_exactly(self):
+		values = dict(SAMPLE_VALUES, button_color="#ff6600")
+		css = te.build_settings_css(values)
+		self.assertIn("--btn-primary: #ff6600;", css)
+
+	def test_button_color_blank_derives_a_contrast_safe_variant(self):
+		"""No dedicated button colour - the button still has to be legible."""
+		# A saturated mid-tone where neither pole clears AA outright, unlike
+		# SAMPLE_VALUES's green (black already reads fine on it).
+		values = dict(SAMPLE_VALUES, accent_color="#7c5cff")
+		css = te.build_settings_css(values)
+		match = re.search(r"--btn-primary: (#[0-9a-f]{6});", css)
+		self.assertIsNotNone(match)
+		button = match.group(1)
+		ink = te.readable_ink(button)
+		self.assertGreaterEqual(te.contrast_of(button, ink), 4.49)
+
+	def test_app_icon_logo_only_when_toggled_on(self):
+		values = dict(SAMPLE_VALUES, app_logo="/files/logo.png", show_logo_as_app_icon=1)
+		css = te.build_settings_css(values)
+		self.assertIn(".dock-logo .header-logo", css)
+		self.assertIn("/files/logo.png", css)
+
+	def test_app_icon_logo_off_by_default(self):
+		values = dict(SAMPLE_VALUES, app_logo="/files/logo.png")
+		css = te.build_settings_css(values)
+		self.assertNotIn(".dock-logo", css)
 
 	def test_navbar_falls_back_to_sidebar_when_blank(self):
 		"""The field's own description promises this."""
